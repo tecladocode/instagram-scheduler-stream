@@ -39,5 +39,5 @@ class User(Base, UserMixin):
     confirmed_at = Column(DateTime())
     roles = relationship('Role',
                          secondary='roles_users',
-                         back_populates="users",
-                         lazy="dynamic")
+                         back_populates="users")
+    images = relationship("InstagramImage", back_populates="user")
