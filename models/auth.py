@@ -37,6 +37,8 @@ class User(Base, UserMixin):
     active = Column(Boolean())
     fs_uniquifier = Column(String(255), unique=True, nullable=False)
     confirmed_at = Column(DateTime())
+    facebook_access_token = Column(String())
+    instagram_user_id = Column(String())
     roles = relationship('Role',
                          secondary='roles_users',
                          back_populates="users")

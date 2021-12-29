@@ -1,3 +1,4 @@
 flask
 flask-security-too
 sqlalchemy
+loguru
