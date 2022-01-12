@@ -1,11 +1,12 @@
 import os
+import datetime
 
 from flask import Blueprint, render_template, request, url_for, current_app, abort
 from flask_security import current_user, auth_required
 from werkzeug.utils import redirect
-import requests
 from loguru import logger
 
+from tasks import publish_instagram_media
 from database import db_session
 from models import InstagramImage
 from b2_upload import upload_to_b2
@@ -19,6 +20,10 @@ def upload():
     if request.method == "POST":
         logger.debug("Handling POST of upload endpoint")
         uploaded_file = request.files['image']
+        publish_date = request.form["publish_date"]
+        logger.debug(f"Photo will be published on {publish_date}.")
+        publish_datetime = datetime.datetime.strptime(publish_date,
+                                                      "%Y-%m-%dT%H:%M")
         filename = uploaded_file.filename
         logger.debug(f"Uploaded {filename}")
         if filename != '':
@@ -33,31 +38,15 @@ def upload():
             logger.debug("File removed from local disk.")
 
             db_session.add(
-                InstagramImage(user_id=current_user.id, image_url=file_url))
+                InstagramImage(user_id=current_user.id,
+                               image_url=file_url,
+                               publish_date=publish_datetime))
             db_session.commit()
 
-            logger.debug("Creating Instagram media with facebook API.")
-            create_media = requests.post(
-                f"https://graph.facebook.com/{current_user.instagram_user_id}/media",
-                params={
-                    "image_url": file_url,
-                    "access_token": current_user.facebook_access_token
-                })
-            container_id = create_media.json()["id"]
-            logger.debug(
-                f"Publishing Instagram container {container_id} with facebook API."
-            )
-            publish_media = requests.post(
-                f"https://graph.facebook.com/{current_user.instagram_user_id}/media_publish",
-                params={
-                    "creation_id": container_id,
-                    "access_token": current_user.facebook_access_token
-                })
-
-            logger.debug(
-                "Instagram container published successfully with HTTP status {publish_media.status_code}."
-            )
-            logger.debug(publish_media.content)
+            publish_instagram_media.apply_async(
+                (file_url, current_user.instagram_user_id,
+                 current_user.facebook_access_token),
+                eta=publish_datetime)
 
         return redirect(url_for(".upload"))
     return render_template("upload.html")
